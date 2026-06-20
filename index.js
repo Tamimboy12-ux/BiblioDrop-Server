@@ -74,6 +74,19 @@ async function run() {
 });
 
 
+   app.get("/users", async (req, res) => {
+  try {
+    const result = await usersCollection.find().toArray();
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+    });
+  }
+});
+
+
 
 
 
