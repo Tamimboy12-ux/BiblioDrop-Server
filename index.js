@@ -40,7 +40,7 @@ async function run() {
 
     const db = client.db(process.env.DB_NAME);
 
-    const usersCollection = db.collection("users");
+    const usersCollection = db.collection("user");
     const booksCollection = db.collection("books");
     const deliveriesCollection = db.collection("deliveries");
     const reviewsCollection = db.collection("reviews");
@@ -104,6 +104,26 @@ async function run() {
     });
   }
 });
+
+
+
+   // BOOKS Related API
+
+   app.post("/books", async (req, res) => {
+     const book = req.body;
+   
+     const newBook = {
+       ...book,
+   
+       status: "Pending Approval",
+       createdAt: new Date()
+     };   
+     const result = await booksCollection.insertOne(newBook);   
+     res.send(result);
+   });
+
+
+   
 
 
 
