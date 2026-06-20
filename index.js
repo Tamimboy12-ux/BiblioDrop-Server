@@ -48,6 +48,8 @@ async function run() {
 
 
 
+    // users related api
+
     app.post("/users", async (req, res) => {
   try {
     const user = req.body;
@@ -85,6 +87,24 @@ async function run() {
     });
   }
 });
+
+
+   app.get("/users/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+
+    const result = await usersCollection.findOne({
+      email,
+    });
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+    });
+  }
+});
+
 
 
 
