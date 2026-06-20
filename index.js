@@ -175,6 +175,51 @@ async function run() {
     });
 
 
+    // admin related api
+
+    app.get("/admin/books/pending", async(req,res)=>{
+
+      const result = await booksCollection.find({
+        status:"Pending Approval"
+      }).toArray();
+
+      res.send(result);
+    });
+
+
+
+    app.patch("/admin/books/approve/:id", async(req,res)=>{
+    
+      const id = req.params.id;
+    
+      const result = await booksCollection.updateOne(
+        {
+          _id:new ObjectId(id)
+        },
+    
+        {
+          $set:{
+            status:"Published"
+          }
+        }
+      );
+  
+      res.send(result);
+    });
+
+
+    app.delete("/admin/books/:id", async(req,res)=>{
+
+     const id = req.params.id;
+
+     const result = await booksCollection.deleteOne({
+      _id:new ObjectId(id)
+     });
+
+     res.send(result);
+    });
+
+
 
 
 
