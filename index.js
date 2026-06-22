@@ -50,30 +50,30 @@ async function run() {
 
     // users related api
 
-    app.post("/users", async (req, res) => {
-  try {
-    const user = req.body;
+//     app.post("/users", async (req, res) => {
+//   try {
+//     const user = req.body;
 
-    const existingUser = await usersCollection.findOne({
-      email: user.email,
-    });
+//     const existingUser = await usersCollection.findOne({
+//       email: user.email,
+//     });
 
-    if (existingUser) {
-      return res.send({
-        message: "User already exists",
-        inserted: false,
-      });
-    }
+//     if (existingUser) {
+//       return res.send({
+//         message: "User already exists",
+//         inserted: false,
+//       });
+//     }
 
-    const result = await usersCollection.insertOne(user);
+//     const result = await usersCollection.insertOne(user);
 
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({
-      message: error.message,
-    });
-  }
-});
+//     res.send(result);
+//   } catch (error) {
+//     res.status(500).send({
+//       message: error.message,
+//     });
+//   }
+// });
 
 
    app.get("/users", async (req, res) => {
@@ -143,6 +143,20 @@ async function run() {
     });
 
 
+
+    app.get("/books/librarian/:email", async (req, res) => {
+      const email = req.params.email;
+
+      const result = await booksCollection
+        .find({
+          librarianEmail: email,
+        })
+        .toArray();
+
+      res.send(result);
+    });
+
+
     app.patch("/books/:id", async(req,res)=>{
 
       const id = req.params.id;
@@ -163,6 +177,27 @@ async function run() {
     });
 
 
+    app.patch("/books/status/:id", async (req, res) => {
+      const id = req.params.id;
+        
+      const { status } = req.body;
+        
+      const result =
+        await booksCollection.updateOne(
+          {
+            _id: new ObjectId(id),
+          },
+          {
+            $set: {
+              status,
+            },
+          }
+        );
+    
+      res.send(result);
+    });
+
+
     app.delete("/books/:id", async(req,res)=>{
 
        const id = req.params.id;
@@ -173,6 +208,8 @@ async function run() {
        
        res.send(result);
     });
+
+
 
 
     // admin related api
