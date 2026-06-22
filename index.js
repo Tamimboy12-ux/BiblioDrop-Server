@@ -1,6 +1,8 @@
 const dns = require("dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
+const Stripe = require("stripe");
+
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -11,6 +13,7 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 
 app.use(
@@ -43,8 +46,8 @@ async function run() {
     const usersCollection = db.collection("user");
     const booksCollection = db.collection("books");
     const deliveriesCollection = db.collection("deliveries");
+    const transactionsCollection = db.collection("transactions");
     const reviewsCollection = db.collection("reviews");
-
 
 
 
@@ -108,9 +111,6 @@ async function run() {
     });
 
 
-
-
-
    // BOOKS Related API
 
    app.post("/books", async (req, res) => {
@@ -127,9 +127,13 @@ async function run() {
    });
 
 
-   app.get("/books", async (req, res) => {
+    // published books only
 
-      const result = await booksCollection.find().toArray();
+   app.get("/published-books", async (req, res) => {
+
+      const result = await booksCollection.find({
+         status: "Published",
+      }).toArray();
 
       res.send(result);
     });
@@ -258,6 +262,7 @@ async function run() {
 
 
     // admin stats
+
     app.get("/admin/stats", async (req, res) => {
       try {
         const totalUsers = await usersCollection.countDocuments();
@@ -304,6 +309,75 @@ async function run() {
 
       }
     });
+
+
+
+    // Create Delivery Request
+
+    app.post("/deliveries", async (req, res) => {
+      try {
+        const delivery = req.body;
+
+        const newDelivery = {
+          ...delivery,
+          status: "Pending",
+          requestDate: new Date(),
+        };
+
+        const result = await deliveriesCollection.insertOne(
+            newDelivery
+          );
+
+        res.send(result);
+
+      } catch (error) {
+        res.status(500).send({
+          message: error.message,
+        });
+
+      }
+    });
+
+
+    // transaction related api
+
+    app.post("/create-payment-intent", async (req, res) => {
+        try {
+          const { amount } = req.body;
+
+          const paymentIntent = await stripe.paymentIntents.create({
+              amount: amount * 100,
+              currency: "usd",
+              payment_method_types: [
+                "card",
+              ],
+            });
+
+          res.send({
+            clientSecret:
+              paymentIntent.client_secret,
+          });
+
+        } catch (error) {
+
+          res.status(500).send({
+            message:
+              error.message,
+          });
+        }
+      }
+    );
+
+
+    app.post("/transactions", async (req, res) => {
+        const transaction = req.body;
+
+        const result = await transactionsCollection.insertOne(transaction);
+
+        res.send(result);
+      }
+    );
+
 
 
 
