@@ -63,9 +63,9 @@ async function run() {
     });
 
 
-    app.patch("/admin/users/role:id", async (req, res) => {
+    app.patch("/admin/users/role/:id", async (req, res) => {
       try {
-        const id = req.params.email;
+        const id = req.params.id;
         const {role} = req.body
 
         const result = await usersCollection.updateOne(
@@ -254,6 +254,55 @@ async function run() {
           })
      
         }
+    });
+
+
+    // admin stats
+    app.get("/admin/stats", async (req, res) => {
+      try {
+        const totalUsers = await usersCollection.countDocuments();
+
+        const totalBooks = await booksCollection.countDocuments();
+
+        const totalDeliveries = await deliveriesCollection.countDocuments();
+
+        const deliveries = await deliveriesCollection.find().toArray();
+
+        const totalRevenue = deliveries.reduce(
+            (sum, item) =>
+              sum + (item.amount || 0),
+            0
+          );
+
+        const books = await booksCollection.find().toArray();
+
+        const categoryMap = {};
+
+        books.forEach((book) => {
+
+          if (!categoryMap[book.category]) {
+            categoryMap[book.category] = 0;
+          }
+
+          categoryMap[book.category]++;
+        });
+
+        const categoryData = Object.entries(categoryMap).map(
+            ([name, value]) => ({
+              name,
+              value,
+            })
+          );
+
+        res.send({ totalUsers, totalBooks, totalDeliveries, totalRevenue, categoryData,});
+
+      } catch (error) {
+
+        res.status(500).send({
+          message: error.message,
+        });
+
+      }
     });
 
 
