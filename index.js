@@ -50,60 +50,64 @@ async function run() {
 
     // users related api
 
-//     app.post("/users", async (req, res) => {
-//   try {
-//     const user = req.body;
-
-//     const existingUser = await usersCollection.findOne({
-//       email: user.email,
-//     });
-
-//     if (existingUser) {
-//       return res.send({
-//         message: "User already exists",
-//         inserted: false,
-//       });
-//     }
-
-//     const result = await usersCollection.insertOne(user);
-
-//     res.send(result);
-//   } catch (error) {
-//     res.status(500).send({
-//       message: error.message,
-//     });
-//   }
-// });
-
-
-   app.get("/users", async (req, res) => {
-  try {
-    const result = await usersCollection.find().toArray();
-
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({
-      message: error.message,
-    });
-  }
-});
-
-
-   app.get("/users/:email", async (req, res) => {
-  try {
-    const email = req.params.email;
-
-    const result = await usersCollection.findOne({
-      email,
+    app.get("/admin/users", async (req, res) => {
+      try {
+        const result = await usersCollection.find().toArray();
+         
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({
+          message: error.message,
+        });
+      }
     });
 
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({
-      message: error.message,
+
+    app.patch("/admin/users/role:id", async (req, res) => {
+      try {
+        const id = req.params.email;
+        const {role} = req.body
+
+        const result = await usersCollection.updateOne(
+            {
+                _id:new ObjectId(id)
+            },
+
+            {
+                $set:{
+                    role
+                }
+            }
+        )
+
+        res.send(result);
+
+      } catch (error) {
+        res.status(500).send({
+          message: error.message,
+        });
+      }
     });
-  }
-});
+
+
+    app.delete("/admin/users/:id", async(req,res)=>{  
+        try{
+            const id=req.params.id;
+
+            const result = await usersCollection.deleteOne({
+                _id:new ObjectId(id)
+            });
+
+            res.send(result);
+
+            } catch(error){
+                res.status(500).send({
+                 message:error.message
+              })
+        }
+    });
+
+
 
 
 
@@ -128,18 +132,6 @@ async function run() {
       const result = await booksCollection.find().toArray();
 
       res.send(result);
-    });
-
-
-    app.get("/books/:id", async(req,res)=>{
-
-        const id = req.params.id;
-
-        const result = await booksCollection.findOne({
-            _id: new ObjectId(id)
-          });
-      
-        res.send(result);
     });
 
 
@@ -179,9 +171,9 @@ async function run() {
 
     app.patch("/books/status/:id", async (req, res) => {
       const id = req.params.id;
-        
+
       const { status } = req.body;
-        
+
       const result =
         await booksCollection.updateOne(
           {
@@ -193,7 +185,7 @@ async function run() {
             },
           }
         );
-    
+
       res.send(result);
     });
 
@@ -201,6 +193,12 @@ async function run() {
     app.delete("/books/:id", async(req,res)=>{
 
        const id = req.params.id;
+
+       if(!ObjectId.isValid(id)){
+          return res.status(400).send({
+            message:"Invalid book id"
+          });
+       }
             
        const result = await booksCollection.deleteOne({
         _id:new ObjectId(id)
@@ -211,49 +209,64 @@ async function run() {
 
 
 
+    // Get pending approval books (Admin)
 
-    // admin related api
+    app.get("/books/pending", async (req, res) => {
+      try {
+        const result = await booksCollection.find({
+            status: "Pending Approval"
+          }).toArray();
 
-    app.get("/admin/books/pending", async(req,res)=>{
+        console.log("result", result)  
 
-      const result = await booksCollection.find({
-        status:"Pending Approval"
-      }).toArray();
+        res.send(result);
 
-      res.send(result);
+      } catch (error) {
+        res.status(500).send({
+          message: error.message
+        });
+
+      }
     });
 
 
 
-    app.patch("/admin/books/approve/:id", async(req,res)=>{
-    
-      const id = req.params.id;
-    
-      const result = await booksCollection.updateOne(
-        {
-          _id:new ObjectId(id)
-        },
-    
-        {
-          $set:{
-            status:"Published"
-          }
+    app.patch("/books/approve/:id", async(req,res)=>{
+        try{
+         const id = req.params.id;
+          
+         const result = await booksCollection.updateOne(
+            {
+             _id:new ObjectId(id)
+            },
+            {
+             $set:{
+               status:"Published"
+             }
+            }
+         );
+     
+         res.send(result);
+     
+        } catch(error){
+            res.status(500).send({
+            message:error.message
+          })
+     
         }
-      );
-  
-      res.send(result);
     });
 
 
-    app.delete("/admin/books/:id", async(req,res)=>{
 
-     const id = req.params.id;
+    app.get("/books/:id", async(req,res)=>{
 
-     const result = await booksCollection.deleteOne({
-      _id:new ObjectId(id)
-     });
+        const id = req.params.id;
 
-     res.send(result);
+        const result = await booksCollection.findOne({
+            _id:new ObjectId(id)
+          });
+      
+        res.send(result);
     });
 
 
