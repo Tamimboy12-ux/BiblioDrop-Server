@@ -261,56 +261,6 @@ async function run() {
     });
 
 
-    // admin stats
-
-    app.get("/admin/stats", async (req, res) => {
-      try {
-        const totalUsers = await usersCollection.countDocuments();
-
-        const totalBooks = await booksCollection.countDocuments();
-
-        const totalDeliveries = await deliveriesCollection.countDocuments();
-
-        const deliveries = await deliveriesCollection.find().toArray();
-
-        const totalRevenue = deliveries.reduce(
-            (sum, item) =>
-              sum + (item.amount || 0),
-            0
-          );
-
-        const books = await booksCollection.find().toArray();
-
-        const categoryMap = {};
-
-        books.forEach((book) => {
-
-          if (!categoryMap[book.category]) {
-            categoryMap[book.category] = 0;
-          }
-
-          categoryMap[book.category]++;
-        });
-
-        const categoryData = Object.entries(categoryMap).map(
-            ([name, value]) => ({
-              name,
-              value,
-            })
-          );
-
-        res.send({ totalUsers, totalBooks, totalDeliveries, totalRevenue, categoryData,});
-
-      } catch (error) {
-
-        res.status(500).send({
-          message: error.message,
-        });
-
-      }
-    });
-
-
 
     // Create Delivery Request
 
@@ -455,6 +405,213 @@ async function run() {
         const result = await transactionsCollection.insertOne(transaction);
 
         res.send(result);
+      }
+    );
+
+
+   app.get("/transactions", async (req, res) => {
+        try {
+          const result = await transactionsCollection
+              .find()
+              .sort({
+                date: -1,
+              })
+              .toArray();
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message: error.message,
+          });
+        }
+      }
+    );
+
+
+    // reviews related api
+
+    app.post("/reviews", async (req, res) => {
+      try {
+        const review = req.body;
+        createdAt = new Date();
+
+        const result = await reviewsCollection.insertOne(review);
+
+        res.send(result);
+
+      } catch (error) {
+        res.status(500).send({
+          message: error.message,
+        });
+      }
+    });
+
+
+    app.get("/reviews/book/:bookId", async (req, res) => {
+        try {
+          const email = req.params.bookId;
+
+          const result = await reviewsCollection.find({
+                bookId: bookId
+              })
+              .toArray();
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message: error.message,
+          });
+        }
+      }
+    );
+
+
+    app.get("/reviews/user/:email", async (req, res) => {
+        try {
+          const email = req.params.email;
+
+          const result = await reviewsCollection
+              .find({
+                userEmail: email,
+              })
+              .sort({
+                createdAt: -1,
+              })
+              .toArray();
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message:
+              error.message,
+          });
+        }
+      }
+    );
+
+
+    app.patch("/reviews/:id", async (req, res) => {
+        try {
+          const id = req.params.id;
+
+          const { comment } = req.body;
+
+          const result = await reviewsCollection.updateOne(
+                {
+                  _id: new ObjectId(id),
+                },
+                {
+                  $set: {
+                    comment,
+                  },
+                }
+              );
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message:
+              error.message,
+          });
+        }
+      }
+    );
+
+
+    app.delete("/reviews/:id", async (req, res) => {
+        try {
+          const id = req.params.id;
+
+          const result = await reviewsCollection.deleteOne({_id: new ObjectId(id)});
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message:
+              error.message,
+          });
+        }
+      }
+    );
+
+
+    // Reading list related api
+
+    app.get("/reading-list/:email", async (req, res) => {
+        try {
+          const email = req.params.email;
+
+          const result = await deliveriesCollection.find({
+                userEmail: email,
+                status: "Delivered",
+              })
+              .toArray();
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message:
+              error.message,
+          });
+        }
+      }
+    );
+
+
+
+
+    // admin stats
+
+    app.get("/admin/stats", async (req, res) => {
+      try {
+
+        const totalUsers = await usersCollection.countDocuments();
+        const totalBooks = await booksCollection.countDocuments();
+        const totalDeliveries = await deliveriesCollection.countDocuments();
+        const transactions = await transactionsCollection.find().toArray();
+
+        const totalRevenue = transactions.reduce((sum, item) =>
+              sum + Number(item.amount || 0),
+            0
+          );
+
+        res.send({ totalUsers, totalBooks, totalDeliveries, totalRevenue,});
+
+      } catch (error) {
+        res.status(500).send({
+          message: error.message,
+        });
+      }
+    });
+
+
+    app.get("/admin/books-by-category", async (req, res) => {
+        try {
+          const result = await booksCollection.aggregate([
+                {
+                  $group: {
+                    _id: "$category",
+                    value: {
+                      $sum: 1,
+                    },
+                  },
+                },
+              ])
+              .toArray();
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message: error.message,
+          });
+        }
       }
     );
 
