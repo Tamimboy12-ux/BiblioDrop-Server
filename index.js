@@ -362,6 +362,63 @@ async function run() {
     );
 
 
+    app.get("/deliveries/librarian/:email", async (req, res) => {
+        try {
+
+          const email = req.params.email;
+
+          const result = await deliveriesCollection
+              .find({
+                librarianEmail: email,
+              })
+              .sort({
+                requestDate: -1,
+              })
+              .toArray();
+
+          res.send(result);
+
+        } catch (error) {
+
+          res.status(500).send({
+            message:
+              error.message,
+          });
+        }
+      }
+    );
+
+
+    app.patch("/deliveries/status/:id", async (req, res) => {
+        try {
+          const id = req.params.id;
+          const { status } = req.body;
+
+          const result = await deliveriesCollection.updateOne(
+                {
+                  _id:
+                    new ObjectId(id),
+                },
+                {
+                  $set: {
+                    status,
+                  },
+                }
+              );
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message:
+              error.message,
+            });
+        }
+      }
+    );
+
+
+
     // transaction related api
 
     app.post("/create-payment-intent", async (req, res) => {
