@@ -339,6 +339,29 @@ async function run() {
     });
 
 
+
+    app.get("/deliveries/user/:email", async (req, res) => {
+        try {
+          const email = req.params.email;
+
+          const result =  await deliveriesCollection.find({
+                userEmail: email,
+              }).sort({
+                requestDate: -1,
+              }).toArray();
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message:
+              error.message,
+          });
+        }
+      }
+    );
+
+
     // transaction related api
 
     app.post("/create-payment-intent", async (req, res) => {
