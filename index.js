@@ -7,6 +7,10 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+
+
 const { ObjectId } = require("mongodb");
 
 dotenv.config();
@@ -25,6 +29,8 @@ app.use(
 
 app.use(express.json());
 
+app.use(cookieParser());
+
 const { MongoClient, ServerApiVersion } = require("mongodb");
 
 const uri = process.env.MONGO_DB_URI;
@@ -36,6 +42,33 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+
+
+const verifyToken = ( req, res, next)=> {
+      const token = req.cookies?.token;
+
+      if (!token) {
+        return res.status(401).send({
+            message:"Unauthorized",
+          });
+      }
+
+      jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+          if (err) {
+            return res.status(401).send({
+                message:"Unauthorized",
+              });
+          }
+
+          req.user = decoded;
+
+          next();
+        }
+      );
+    };
+
+
 
 async function run() {
   try {
@@ -51,9 +84,56 @@ async function run() {
 
 
 
+    // JWT
+
+    app.post("/jwt", async (req, res) => { 
+      const user = req.body;
+
+      const token = jwt.sign(
+        user,
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "7d",
+        }
+      );
+
+      res.cookie(
+          "token",
+          token,
+          {
+            httpOnly: true,
+            secure: false,
+            sameSite: "lax",
+          }
+        )
+        .send({
+          success: true,
+        });
+    });
+
+
+
+    const verifyAdmin = async ( req, res, next ) => {
+        const email = req.user.email;
+
+        const user = await usersCollection.findOne({email,});
+
+        if (!user || user.role !== "admin") {
+            return res.status(403).send({
+                message: "Forbidden",
+            });
+        }
+
+        next();
+    };
+
+
+
+
+
     // users related api
 
-    app.get("/admin/users", async (req, res) => {
+    app.get("/admin/users", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await usersCollection.find().toArray();
          
@@ -66,7 +146,7 @@ async function run() {
     });
 
 
-    app.patch("/admin/users/role/:id", async (req, res) => {
+    app.patch("/admin/users/role/:id", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const {role} = req.body
@@ -93,7 +173,7 @@ async function run() {
     });
 
 
-    app.delete("/admin/users/:id", async(req,res)=>{  
+    app.delete("/admin/users/:id", verifyToken, verifyAdmin, async(req,res)=>{  
         try{
             const id=req.params.id;
 
@@ -113,7 +193,7 @@ async function run() {
 
    // BOOKS Related API
 
-   app.post("/books", async (req, res) => {
+   app.post("/books", verifyToken, async (req, res) => {
      const book = req.body;
    
      const newBook = {
@@ -140,7 +220,7 @@ async function run() {
 
 
 
-    app.get("/books/librarian/:email", async (req, res) => {
+    app.get("/books/librarian/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
 
       const result = await booksCollection
@@ -153,7 +233,7 @@ async function run() {
     });
 
 
-    app.patch("/books/:id", async(req,res)=>{
+    app.patch("/books/:id", verifyToken, async(req,res)=>{
 
       const id = req.params.id;
 
@@ -173,7 +253,7 @@ async function run() {
     });
 
 
-    app.patch("/books/status/:id", async (req, res) => {
+    app.patch("/books/status/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
 
       const { status } = req.body;
@@ -194,7 +274,7 @@ async function run() {
     });
 
 
-    app.delete("/books/:id", async(req,res)=>{
+    app.delete("/books/:id", verifyToken, async(req,res)=>{
 
        const id = req.params.id;
 
@@ -215,7 +295,7 @@ async function run() {
 
     // Get pending approval books (Admin)
 
-    app.get("/books/pending", async (req, res) => {
+    app.get("/books/pending", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await booksCollection.find({
             status: "Pending Approval"
@@ -235,7 +315,7 @@ async function run() {
 
 
 
-    app.patch("/books/approve/:id", async(req,res)=>{
+    app.patch("/books/approve/:id", verifyToken, verifyAdmin, async(req,res)=>{
         try{
          const id = req.params.id;
           
@@ -264,7 +344,7 @@ async function run() {
 
     // Create Delivery Request
 
-    app.post("/deliveries", async (req, res) => {
+    app.post("/deliveries", verifyToken, async (req, res) => {
       try {
         const delivery = req.body;
 
@@ -290,7 +370,7 @@ async function run() {
 
 
 
-    app.get("/deliveries/user/:email", async (req, res) => {
+    app.get("/deliveries/user/:email", verifyToken, async (req, res) => {
         try {
           const email = req.params.email;
 
@@ -312,7 +392,7 @@ async function run() {
     );
 
 
-    app.get("/deliveries/librarian/:email", async (req, res) => {
+    app.get("/deliveries/librarian/:email", verifyToken, async (req, res) => {
         try {
 
           const email = req.params.email;
@@ -339,7 +419,7 @@ async function run() {
     );
 
 
-    app.patch("/deliveries/status/:id", async (req, res) => {
+    app.patch("/deliveries/status/:id", verifyToken, async (req, res) => {
         try {
           const id = req.params.id;
           const { status } = req.body;
@@ -399,7 +479,7 @@ async function run() {
     );
 
 
-    app.post("/transactions", async (req, res) => {
+    app.post("/transactions", verifyToken, async (req, res) => {
         const transaction = req.body;
 
         const result = await transactionsCollection.insertOne(transaction);
@@ -409,7 +489,7 @@ async function run() {
     );
 
 
-   app.get("/transactions", async (req, res) => {
+   app.get("/transactions", verifyToken, verifyAdmin, async (req, res) => {
         try {
           const result = await transactionsCollection
               .find()
@@ -431,7 +511,7 @@ async function run() {
 
     // reviews related api
 
-    app.post("/reviews", async (req, res) => {
+    app.post("/reviews", verifyToken, async (req, res) => {
       try {
         const review = req.body;
         createdAt = new Date();
@@ -468,7 +548,7 @@ async function run() {
     );
 
 
-    app.get("/reviews/user/:email", async (req, res) => {
+    app.get("/reviews/user/:email", verifyToken, async (req, res) => {
         try {
           const email = req.params.email;
 
@@ -493,7 +573,7 @@ async function run() {
     );
 
 
-    app.patch("/reviews/:id", async (req, res) => {
+    app.patch("/reviews/:id", verifyToken, async (req, res) => {
         try {
           const id = req.params.id;
 
@@ -522,7 +602,7 @@ async function run() {
     );
 
 
-    app.delete("/reviews/:id", async (req, res) => {
+    app.delete("/reviews/:id", verifyToken, async (req, res) => {
         try {
           const id = req.params.id;
 
@@ -542,7 +622,7 @@ async function run() {
 
     // Reading list related api
 
-    app.get("/reading-list/:email", async (req, res) => {
+    app.get("/reading-list/:email", verifyToken, async (req, res) => {
         try {
           const email = req.params.email;
 
@@ -566,9 +646,9 @@ async function run() {
 
 
 
-    // admin stats
+    // admin stats overview api
 
-    app.get("/admin/stats", async (req, res) => {
+    app.get("/admin/stats", verifyToken, verifyAdmin, async (req, res) => {
       try {
 
         const totalUsers = await usersCollection.countDocuments();
@@ -591,7 +671,7 @@ async function run() {
     });
 
 
-    app.get("/admin/books-by-category", async (req, res) => {
+    app.get("/admin/books-by-category", verifyToken, verifyAdmin, async (req, res) => {
         try {
           const result = await booksCollection.aggregate([
                 {
@@ -614,6 +694,93 @@ async function run() {
         }
       }
     );
+
+
+    // user stats overview api
+
+    app.get("/dashboard/user-overview/:email", verifyToken, async (req, res) => {
+        try {
+          const email = req.params.email;
+
+          const deliveries = await deliveriesCollection
+              .find({
+                userEmail: email,
+              })
+              .toArray();
+
+          const totalBooksRead = deliveries.filter(
+              item => item.status === "Delivered").length;
+
+          const pendingDeliveries = deliveries.filter(
+              item => item.status === "Pending" ||
+                item.status === "Dispatched").length;
+
+          const totalSpent = deliveries.reduce((sum, item)=>
+                sum +
+                (
+                  Number(item.deliveryFee) || 0
+                ),
+              0
+            );
+
+          res.send({
+            totalBooksRead,
+            pendingDeliveries,
+            totalSpent,
+            chartData: deliveries,
+          });
+
+        } catch (error) {
+          res.status(500).send({
+            message: error.message,
+          });
+        }
+      }
+    );
+
+
+    // librarian stats overview
+
+    app.get("/dashboard/librarian-overview/:email", verifyToken, async (req, res) => {
+        try {
+          const email = req.params.email;
+
+          const books = await booksCollection.find({
+                librarianEmail: email,
+              }).toArray();
+
+          const deliveries = await deliveriesCollection.find({
+                librarianEmail: email,
+              }).toArray();
+
+          const totalBooks = books.length;
+
+          const totalEarnings = deliveries.filter(item => 
+                item.status === "Delivered")
+                .reduce((sum, item)=>
+                  sum +
+                  Number(item.deliveryFee),
+                0
+              );
+
+          const pendingRequests = deliveries.filter(item =>
+                item.status === "Pending").length;
+
+          res.send({
+            totalBooks,
+            totalEarnings,
+            pendingRequests,
+            chartData: deliveries,
+          });
+
+        } catch (error) {
+          res.status(500).send({
+            message: error.message,
+          });
+        }
+      }
+    );
+
 
 
 
