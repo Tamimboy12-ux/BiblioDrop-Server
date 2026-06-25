@@ -86,29 +86,50 @@ async function run() {
 
     // JWT
 
-    app.post("/jwt", async (req, res) => { 
-      const user = req.body;
+    app.post("/jwt", async (req, res) => {
+      const { email } = req.body;
+
+      const existingUser = await usersCollection.findOne({email,});
+
+      if (!existingUser) {
+        return res.status(404).send({
+          message: "User not found",
+        });
+      }
 
       const token = jwt.sign(
-        user,
+        {
+          email: existingUser.email,
+          role: existingUser.role,
+        },
         process.env.JWT_SECRET,
         {
           expiresIn: "7d",
         }
       );
 
-      res.cookie(
-          "token",
-          token,
-          {
-            httpOnly: true,
-            secure: false,
-            sameSite: "lax",
-          }
-        )
-        .send({
-          success: true,
-        });
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+      });
+
+      res.send({
+        success: true,
+      });
+    });
+
+
+    app.post("/logout", (req, res) => {
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+      });
+  
+      res.send({
+        success: true,
+      });
     });
 
 
@@ -209,19 +230,86 @@ async function run() {
 
     // published books only
 
-   app.get("/published-books", async (req, res) => {
+    app.get("/published-books", async (req, res) => {
+        try {
 
-      const result = await booksCollection.find({
-         status: "Published",
-      }).toArray();
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 6;
+        const skip = (page - 1) * limit;
+        const search = req.query.search || "";
+        const category = req.query.category || "";
+        const minFee = parseInt(req.query.minFee) || 0;
+        const maxFee = parseInt(req.query.maxFee) || 999999;
+        const query = {status: "Published",};
 
-      res.send(result);
+        if (search) {
+          query.title = {
+            $regex: search,
+            $options: "i",
+          };
+        }
+
+        if (category) {
+          query.category = category;
+        }
+
+        query.deliveryFee = {
+          $gte: minFee,
+          $lte: maxFee,
+        };
+
+        const totalBooks = await booksCollection.countDocuments(query);
+
+        const books = await booksCollection.find(query).skip(skip).limit(limit).toArray();
+
+        res.send({
+          books,
+          totalBooks,
+          totalPages: Math.ceil(totalBooks / limit),
+          currentPage: page,
+        });
+
+        } catch (error) {
+        res.status(500).send({
+          message: error.message,
+        });
+      }
     });
+
+
+
+    app.get("/featured-books", async (req, res) => {
+        try {
+          const result = await booksCollection.find({
+                status: "Published",
+              })
+              .sort({
+                createdAt: -1,
+              }).limit(6).toArray();
+
+          res.send(result);
+
+        } catch (error) {
+          res.status(500).send({
+            message: error.message,
+          });
+        }
+      }
+    );
+
 
 
 
     app.get("/books/librarian/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
+
+      if (
+          req.user.email !== email
+        ) {
+          return res.status(403).send({
+            message: "Forbidden",
+          });
+        }
 
       const result = await booksCollection
         .find({
@@ -372,7 +460,18 @@ async function run() {
 
     app.get("/deliveries/user/:email", verifyToken, async (req, res) => {
         try {
+
+             console.log("JWT Email:", req.user.email);
+  console.log("Param Email:", req.params.email);
           const email = req.params.email;
+
+          if (
+              req.user.email !== email
+            ) {
+              return res.status(403).send({
+                message: "Forbidden",
+              });
+            }
 
           const result =  await deliveriesCollection.find({
                 userEmail: email,
@@ -514,27 +613,70 @@ async function run() {
     app.post("/reviews", verifyToken, async (req, res) => {
       try {
         const review = req.body;
-        createdAt = new Date();
 
+        const delivery = await deliveriesCollection.findOne({
+          userEmail: review.userEmail,
+          bookId: review.bookId,
+          status: "Delivered",
+        });
+
+        if (!delivery) {
+            return res.status(403).send({
+              success: false,
+              message: "You must receive the book before reviewing.",
+            });
+        }
+
+        review.createdAt = new Date();
         const result = await reviewsCollection.insertOne(review);
 
-        res.send(result);
+        res.send({
+          success: true,
+          result,
+        });
 
       } catch (error) {
-        res.status(500).send({
-          message: error.message,
-        });
+            res.status(500).send({
+              message: error.message,
+            });
+        }
       }
-    });
+    );
+
+
+    app.get("/reviews/can-review", verifyToken, async (req, res) => {  
+        try {
+          const { email, bookId,}= req.query;
+      
+          const delivery = await deliveriesCollection.findOne({
+              userEmail: email,
+              bookId,
+              status:"Delivered",
+            });
+        
+          res.send({canReview: !!delivery,});
+      
+        } catch (error) {
+          res.status(500).send({
+            message: error.message,
+          });
+        }
+      }
+    );
+
+
 
 
     app.get("/reviews/book/:bookId", async (req, res) => {
         try {
-          const email = req.params.bookId;
+          const bookId = req.params.bookId;
 
           const result = await reviewsCollection.find({
-                bookId: bookId
+                bookId
               })
+              .sort({
+                  createdAt: -1,
+                })
               .toArray();
 
           res.send(result);
