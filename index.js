@@ -126,7 +126,7 @@ async function run() {
         secure: false,
         sameSite: "lax",
       });
-  
+
       res.send({
         success: true,
       });
@@ -947,7 +947,7 @@ async function run() {
       res.send("BiblioDrop Server Running");
     });
 
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
 
     console.log("MongoDB Connected Successfully");
   } finally {
